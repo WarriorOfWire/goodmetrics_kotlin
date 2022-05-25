@@ -42,17 +42,21 @@ class Aggregator(
 
     override fun consume(): Flow<AggregatedBatch> {
         return flow {
-            delay_fn(aggregationWidth)
-            val now = System.currentTimeMillis() * 1000000
-            val batch = currentBatch
-            currentBatch = MetricsMap()
+            while (true) {
+                delay_fn(aggregationWidth)
+                val now = System.currentTimeMillis() * 1000000
+                val batch = currentBatch
+                currentBatch = MetricsMap()
 
-            for ((metric, positions) in batch) {
-                emit(AggregatedBatch(
-                    timestampNanos = now,
-                    metric = metric,
-                    positions = positions,
-                ))
+                for ((metric, positions) in batch) {
+                    emit(
+                        AggregatedBatch(
+                            timestampNanos = now,
+                            metric = metric,
+                            positions = positions,
+                        )
+                    )
+                }
             }
         }
     }
