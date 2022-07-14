@@ -1,6 +1,6 @@
 package goodmetrics
 
-import goodmetrics.MetricsSetups.Companion.rowPerMetric
+import goodmetrics.MetricsSetups.Companion.goodMetrics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -13,7 +13,7 @@ class IntegrationTest {
     @Test
     fun testMetrics() = runBlocking {
         val metricsBackgroundScope = CoroutineScope(Dispatchers.Default)
-        val (emitterJob, metricsFactory) = metricsBackgroundScope.rowPerMetric()
+        val (metricsFactory, _) = metricsBackgroundScope.goodMetrics()
 
         for (i in 1..1000) {
             metricsFactory.record("demo_app") { metrics ->
@@ -24,6 +24,5 @@ class IntegrationTest {
             }
         }
         metricsBackgroundScope.cancel()
-        emitterJob.join()
     }
 }

@@ -1,24 +1,50 @@
 package goodmetrics.downstream
 
 import goodmetrics.Metrics
+import goodmetrics.io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpcKt
+import goodmetrics.io.opentelemetry.proto.collector.metrics.v1.exportMetricsServiceRequest
+import goodmetrics.io.opentelemetry.proto.common.v1.KeyValue
+import goodmetrics.io.opentelemetry.proto.common.v1.anyValue
+import goodmetrics.io.opentelemetry.proto.common.v1.instrumentationScope
+import goodmetrics.io.opentelemetry.proto.common.v1.keyValue
+import goodmetrics.io.opentelemetry.proto.metrics.v1.AggregationTemporality
+import goodmetrics.io.opentelemetry.proto.metrics.v1.Metric
+import goodmetrics.io.opentelemetry.proto.metrics.v1.ResourceMetrics
+import goodmetrics.io.opentelemetry.proto.metrics.v1.ScopeMetrics
+import goodmetrics.io.opentelemetry.proto.metrics.v1.gauge
+import goodmetrics.io.opentelemetry.proto.metrics.v1.histogram
+import goodmetrics.io.opentelemetry.proto.metrics.v1.histogramDataPoint
+import goodmetrics.io.opentelemetry.proto.metrics.v1.metric
+import goodmetrics.io.opentelemetry.proto.metrics.v1.numberDataPoint
+import goodmetrics.io.opentelemetry.proto.metrics.v1.resourceMetrics
+import goodmetrics.io.opentelemetry.proto.metrics.v1.scopeMetrics
+import goodmetrics.io.opentelemetry.proto.metrics.v1.sum
+import goodmetrics.io.opentelemetry.proto.resource.v1.resource
 import goodmetrics.pipeline.AggregatedBatch
 import goodmetrics.pipeline.Aggregation
 import goodmetrics.pipeline.bucket
-import io.grpc.*
+import io.grpc.CallOptions
+import io.grpc.ClientInterceptor
+import io.grpc.Deadline
+import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
-import goodmetrics.io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpcKt
-import goodmetrics.io.opentelemetry.proto.collector.metrics.v1.exportMetricsServiceRequest
-import goodmetrics.io.opentelemetry.proto.common.v1.*
-import goodmetrics.io.opentelemetry.proto.metrics.v1.*
-import goodmetrics.io.opentelemetry.proto.resource.v1.resource
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
-
 sealed interface PrescientDimensions {
+    /**
+     * Include resource dimensions on the OTLP resource.
+     */
     data class AsResource(val resourceDimensions: Map<String, Metrics.Dimension>) : PrescientDimensions
+
+    /**
+     * Include resource dimensions on each metric instead of on the Resource. You'd use this for
+     * downstreams that either do not support or do something undesirable with Resource dimensions.
+     */
     data class AsDimensions(val sharedDimensions: Map<String, Metrics.Dimension>) : PrescientDimensions
 }
 
@@ -36,8 +62,9 @@ enum class SecurityMode {
  * addicted to opentelemetry line protocol.
  */
 class OpentelemetryClient(
-    channel: ManagedChannel,
+    private val channel: ManagedChannel,
     private val prescientDimensions: PrescientDimensions,
+    private val timeout: Duration,
 ) {
     companion object {
         fun connect(
@@ -49,6 +76,7 @@ class OpentelemetryClient(
              * stuff like MetadataUtils.newAttachHeadersInterceptor()
              */
             interceptors: List<ClientInterceptor>,
+            timeout: Duration = 5.seconds,
         ): OpentelemetryClient {
             val channelBuilder = NettyChannelBuilder.forAddress(sillyOtlpHostname, port)
             when (securityMode) {
@@ -68,14 +96,18 @@ class OpentelemetryClient(
                 }
             }
             channelBuilder.intercept(interceptors)
-            return OpentelemetryClient(channelBuilder.build(), prescientDimensions)
+            return OpentelemetryClient(channelBuilder.build(), prescientDimensions, timeout)
         }
     }
-    private val stub: MetricsServiceGrpcKt.MetricsServiceCoroutineStub = MetricsServiceGrpcKt.MetricsServiceCoroutineStub(channel)
+    private fun stub(): MetricsServiceGrpcKt.MetricsServiceCoroutineStub = MetricsServiceGrpcKt.MetricsServiceCoroutineStub(
+        channel,
+        CallOptions.DEFAULT
+            .withDeadline(Deadline.after(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS))
+    )
 
     suspend fun sendMetricsBatch(batch: List<Metrics>) {
         val resourceMetricsBatch = asResourceMetrics(batch)
-        stub.export(
+        stub().export(
             exportMetricsServiceRequest {
                 resourceMetrics.add(resourceMetricsBatch)
             }
@@ -84,7 +116,7 @@ class OpentelemetryClient(
 
     suspend fun sendPreaggregatedBatch(batch: List<AggregatedBatch>) {
         val resourceMetricsBatch = asResourceMetricsFromBatch(batch)
-        stub.export(
+        stub().export(
             exportMetricsServiceRequest {
                 resourceMetrics.add(resourceMetricsBatch)
             }
@@ -181,8 +213,7 @@ class OpentelemetryClient(
                         name = "${this@asGoofyOtlpMetricSequence.name}_$measurementName"
                         unit = "1"
                         gauge = gauge {
-                            // TODO: Get the width on this from the actual total time regardless of whether totaltime was reported
-                            this.dataPoints.add(newNumberDataPoint(value, timestampNanos, 1.seconds, otlpDimensions.asIterable()))
+                            this.dataPoints.add(newNumberDataPoint(value, timestampNanos, (System.nanoTime() - startNanoTime).nanoseconds, otlpDimensions.asIterable()))
                         }
                     }
                 )
@@ -217,15 +248,17 @@ class OpentelemetryClient(
     ) = histogram {
         // Because cumulative is bullshit for service metrics. Change my mind.
         aggregationTemporality = AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA
-        dataPoints.add(histogramDataPoint {
-            attributes.addAll(otlpDimensions)
-            startTimeUnixNano = 0
-            timeUnixNano = timestampNanos
-            count = 1
-            sum = value.toDouble()
-            explicitBounds.add(bucket(value).toDouble())
-            bucketCounts.add(value)
-        })
+        dataPoints.add(
+            histogramDataPoint {
+                attributes.addAll(otlpDimensions)
+                startTimeUnixNano = timestampNanos - (System.nanoTime() - startNanoTime) // approximate, whatever.
+                timeUnixNano = timestampNanos
+                count = 1
+                explicitBounds.add(bucket(value).toDouble())
+                bucketCounts.add(1)
+                bucketCounts.add(0) // otlp go die in a fire
+            }
+        )
     }
 
     private fun Aggregation.Histogram.asOtlpHistogram(
@@ -235,16 +268,18 @@ class OpentelemetryClient(
     ) = histogram {
         // Because cumulative is bullshit for service metrics. Change my mind.
         aggregationTemporality = AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA
-        dataPoints.add(histogramDataPoint {
-            attributes.addAll(otlpDimensions)
-            startTimeUnixNano = timestampNanos - aggregationWidth.inWholeNanoseconds
-            timeUnixNano = timestampNanos
-            val sorted = this@asOtlpHistogram.bucketCounts.toSortedMap()
-            count = this@asOtlpHistogram.bucketCounts.values.sumOf { it.sum() }
-            explicitBounds.addAll(sorted.keys.asSequence().map { it.toDouble() }.asIterable())
-            bucketCounts.addAll(sorted.values.map { it.sum() })
-            bucketCounts.add(0) // because OTLP is _stupid_ and defined histogram format to have an implicit infinity bucket.
-        })
+        dataPoints.add(
+            histogramDataPoint {
+                attributes.addAll(otlpDimensions)
+                startTimeUnixNano = timestampNanos - aggregationWidth.inWholeNanoseconds
+                timeUnixNano = timestampNanos
+                val sorted = this@asOtlpHistogram.bucketCounts.toSortedMap()
+                count = this@asOtlpHistogram.bucketCounts.values.sumOf { it.sum() }
+                explicitBounds.addAll(sorted.keys.asSequence().map { it.toDouble() }.asIterable())
+                bucketCounts.addAll(sorted.values.map { it.sum() })
+                bucketCounts.add(0) // because OTLP is _stupid_ and defined histogram format to have an implicit infinity bucket.
+            }
+        )
     }
 
     private val library = instrumentationScope {
@@ -273,7 +308,7 @@ class OpentelemetryClient(
 
     private fun Metrics.Dimension.asOtlpKeyValue(): KeyValue = keyValue {
         key = this@asOtlpKeyValue.name
-        when(val v = this@asOtlpKeyValue) {
+        when (val v = this@asOtlpKeyValue) {
             is Metrics.Dimension.Boolean -> {
                 value = anyValue { boolValue = v.value }
             }

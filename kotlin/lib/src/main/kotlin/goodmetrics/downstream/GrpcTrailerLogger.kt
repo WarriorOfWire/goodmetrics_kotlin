@@ -10,11 +10,13 @@ import io.grpc.MethodDescriptor
 import io.grpc.Status
 import io.grpc.Metadata as GrpcMetadata
 
-class GrpcTrailerLoggerInterceptor (
+class GrpcTrailerLoggerInterceptor(
     private val onTrailers: (Status, GrpcMetadata) -> Unit
 ) : ClientInterceptor {
     override fun <ReqT, RespT> interceptCall(
-        method: MethodDescriptor<ReqT, RespT>, callOptions: CallOptions, next: Channel
+        method: MethodDescriptor<ReqT, RespT>,
+        callOptions: CallOptions,
+        next: Channel
     ): ClientCall<ReqT, RespT> {
         return TrailersLoggingClientCall(next.newCall(method, callOptions), onTrailers)
     }
