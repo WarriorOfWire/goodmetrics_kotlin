@@ -18,13 +18,11 @@ plugins {
     idea
 }
 
-group = "com.kvc0"
-version = System.getenv("VERSION") ?: "SNAPSHOT"
+group = rootProject.group
+version = rootProject.version
 
 val signingKey = System.getenv("SIGNING_KEY")
 val signingPassword = System.getenv("SIGNING_PASSWORD")
-val ossrhUsername = System.getenv("OSSRH_USERNAME")
-val ossrhPassword = System.getenv("OSSRH_PASSWORD")
 
 java {
     withJavadocJar()
@@ -104,9 +102,21 @@ protobuf {
     }
 }
 
+tasks.kotlinSourcesJar {
+    archiveClassifier.set("sources")
+}
+tasks.javadoc {
+    if (JavaVersion.current().isJava9Compatible) {
+        (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
+    }
+}
+
 publishing {
     publications {
-        create<MavenPublication>("client") {
+        create<MavenPublication>("goodmetrics") {
+            artifact(tasks.named("javadocJar"))
+            artifact(tasks["sourcesJar"])
+
             artifactId = "goodmetrics-kotlin"
 
             println("components:")
@@ -150,20 +160,6 @@ publishing {
             }
         }
     }
-    repositories {
-        maven {
-            name = "sonatype"
-            // change URLs to point to your repos, e.g. http://my.org/repo
-            val releasesRepoUrl = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
-            val snapshotsRepoUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-            url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
-
-            credentials {
-                username = ossrhUsername
-                password = ossrhPassword
-            }
-        }
-    }
 }
 
 signing {
@@ -173,11 +169,5 @@ signing {
         println("  ${p.name}")
     }
 
-    sign(publishing.publications["client"])
-}
-
-tasks.javadoc {
-    if (JavaVersion.current().isJava9Compatible) {
-        (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
-    }
+    sign(publishing.publications["goodmetrics"])
 }
