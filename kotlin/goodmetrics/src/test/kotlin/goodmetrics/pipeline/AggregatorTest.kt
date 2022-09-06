@@ -38,16 +38,18 @@ internal class AggregatorTest {
         sleepAggregator()
     }
 
-    fun metrics(): Metrics {
+    fun metrics(distribution: Long? = null): Metrics {
         val m = Metrics("test", 123, 456)
         m.dimension("tes", "t")
         m.measure("f", 5)
+        if (distribution != null) {
+            m.distribution("distribution", distribution)
+        }
         return m
     }
 
-    @Test
-    fun testConsume() {
-        runBlocking {
+    private fun testOneWindow(runWindow: (Aggregator) -> Unit): AggregatedBatch {
+        return runBlocking {
             val aggregator = Aggregator(aggregationWidth = 1.seconds, delay_fn = ::oneSecondDelay)
             val collectorJob = launch {
                 aggregator.consume().collect { batch ->
@@ -56,26 +58,55 @@ internal class AggregatorTest {
                 }
             }
 
-            aggregator.emit(metrics())
+            runWindow(aggregator)
+
             endAggregatorSleep()
             gotBatch.lock()
 
             assertEquals(1, batches.size)
             val batch = batches[0]
             assertEquals("test", batch.metric)
-            assertEquals(setOf(setOf<Metrics.Dimension>(Metrics.Dimension.String("tes", "t"))), batch.positions.keys)
-            val aggregations = batch.positions[setOf<Metrics.Dimension>(Metrics.Dimension.String("tes", "t"))]!!
-
-            assertEquals(setOf("f"), aggregations.keys)
-            val aggregation = aggregations["f"]!!
-            assertTrue(aggregation is Aggregation.StatisticSet)
-            assertEquals(5.0, aggregation.min.get())
-            assertEquals(5.0, aggregation.max.get())
-            assertEquals(5.0, aggregation.sum.sum())
-            assertEquals(1L, aggregation.count.sum())
-
             collectorJob.cancel()
+
+            batch
         }
+    }
+
+    @Test
+    fun testDistribution() {
+        val batch = testOneWindow { aggregator ->
+            (listOf<Long>(1888, 1809, 1818, 2121, 2220) + (1..995).map { 1888L }).forEach { i ->
+                aggregator.emit(metrics(distribution = i))
+            }
+        }
+
+        val aggregations = batch.positions[setOf<Metrics.Dimension>(Metrics.Dimension.String("tes", "t"))]!!
+
+        assertEquals(setOf("f", "distribution"), aggregations.keys)
+        val aggregation = aggregations["distribution"]!!
+        assertTrue(aggregation is Aggregation.Histogram)
+        assertEquals(998, aggregation.bucketCounts[1900]!!.toLong())
+        assertEquals(1, aggregation.bucketCounts[2200]!!.toLong())
+        assertEquals(1, aggregation.bucketCounts[2300]!!.toLong())
+    }
+
+    @Test
+    fun testStatisticSet() {
+        val batch = testOneWindow { aggregator ->
+            aggregator.emit(metrics())
+            aggregator.emit(metrics())
+        }
+
+        assertEquals(setOf(setOf<Metrics.Dimension>(Metrics.Dimension.String("tes", "t"))), batch.positions.keys)
+        val aggregations = batch.positions[setOf<Metrics.Dimension>(Metrics.Dimension.String("tes", "t"))]!!
+
+        assertEquals(setOf("f"), aggregations.keys)
+        val aggregation = aggregations["f"]!!
+        assertTrue(aggregation is Aggregation.StatisticSet)
+        assertEquals(5.0, aggregation.min.get())
+        assertEquals(5.0, aggregation.max.get())
+        assertEquals(10.0, aggregation.sum.sum())
+        assertEquals(2L, aggregation.count.sum())
     }
 
     @Test

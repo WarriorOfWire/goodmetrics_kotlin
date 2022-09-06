@@ -179,7 +179,7 @@ sealed interface Aggregation {
         val bucketCounts: ConcurrentHashMap<Long, LongAdder> = ConcurrentHashMap(),
     ) : Aggregation {
         fun accumulate(value: Long) {
-            bucketCounts.getOrPut(bucket(value), ::LongAdder).add(value)
+            bucketCounts.getOrPut(bucket(value), ::LongAdder).increment()
         }
     }
 
