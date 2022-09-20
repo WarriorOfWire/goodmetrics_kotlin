@@ -158,9 +158,7 @@ class OpentelemetryClient(
 
     private fun asResourceMetrics(batch: List<Metrics>): ResourceMetrics = resourceMetrics {
         prescientResource?.let { this.resource = it }
-        for (metric in batch) {
-            this.scopeMetrics.add(asScopeMetrics(batch))
-        }
+        this.scopeMetrics.add(asScopeMetrics(batch))
     }
 
     private fun asScopeMetrics(batch: List<Metrics>): ScopeMetrics = scopeMetrics {
