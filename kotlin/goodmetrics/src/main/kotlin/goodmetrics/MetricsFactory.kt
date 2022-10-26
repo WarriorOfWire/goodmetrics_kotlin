@@ -104,10 +104,10 @@ class MetricsFactory(
         if (metrics.timestampNanos < 1) {
             metrics.timestampNanos = timeSource.epochNanos()
         }
-        val duration = System.nanoTime() - metrics.startNanoTime
         if (metrics.metricsBehavior == MetricsBehavior.NO_TOTALTIME) {
             return
         }
+        val duration = System.nanoTime() - metrics.startNanoTime
         when (totaltimeType) {
             TotaltimeType.DistributionMicroseconds -> metrics.distribution("totaltime", duration / 1000)
             TotaltimeType.MeasurementMicroseconds -> metrics.measure("totaltime", duration / 1000)
