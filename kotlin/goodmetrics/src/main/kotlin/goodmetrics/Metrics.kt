@@ -2,6 +2,11 @@ package goodmetrics
 
 import goodmetrics.pipeline.bucketBase2
 
+enum class MetricsBehavior {
+    DEFAULT,
+    NO_TOTALTIME // don't include a `totaltime` timeseries for the metric
+}
+
 /**
  * Not thread safe.
  */
@@ -9,6 +14,7 @@ data class Metrics internal constructor(
     internal val name: String,
     internal var timestampNanos: Long,
     internal val startNanoTime: Long,
+    internal val metricsBehavior: MetricsBehavior = MetricsBehavior.DEFAULT,
 ) {
     sealed interface Dimension {
         val name: kotlin.String

@@ -60,12 +60,14 @@ class MetricsFactory(
     /**
      * Passes a Metrics into your scope. Record your unit of work; when the scope exits
      * the Metrics will be stamped with `totaltime` and emitted through the pipeline.
+     *
+     * If you don't want `totaltime` timeseries data, then specify `metricBehavior: MetricBehavior.NO_TOTALTIME`.
      */
-    inline fun <T> record(name: String, stampAt: TimestampAt = TimestampAt.Start, block: (Metrics) -> T): T {
+    inline fun <T> record(name: String, stampAt: TimestampAt = TimestampAt.Start, metricsBehavior: MetricsBehavior = MetricsBehavior.DEFAULT, block: (Metrics) -> T): T {
         contract {
             callsInPlace(block, InvocationKind.EXACTLY_ONCE)
         }
-        val metrics = internals.getMetrics(name, stampAt)
+        val metrics = internals.getMetrics(name, stampAt, metricsBehavior)
         try {
             return block(metrics)
         } finally {
@@ -80,12 +82,12 @@ class MetricsFactory(
         /**
          * For every getMetrics(), you need to also emit() that Metrics object via this same MetricsFactory.
          */
-        fun getMetrics(name: String, stampAt: TimestampAt): Metrics {
+        fun getMetrics(name: String, stampAt: TimestampAt, metricsBehavior: MetricsBehavior = MetricsBehavior.DEFAULT): Metrics {
             val timestamp = when (stampAt) {
                 TimestampAt.Start -> self.timeSource.epochNanos()
                 TimestampAt.End -> -1
             }
-            return Metrics(name, timestamp, System.nanoTime())
+            return Metrics(name, timestamp, System.nanoTime(), metricsBehavior)
         }
 
         /**
@@ -103,6 +105,9 @@ class MetricsFactory(
             metrics.timestampNanos = timeSource.epochNanos()
         }
         val duration = System.nanoTime() - metrics.startNanoTime
+        if (metrics.metricsBehavior == MetricsBehavior.NO_TOTALTIME) {
+            return
+        }
         when (totaltimeType) {
             TotaltimeType.DistributionMicroseconds -> metrics.distribution("totaltime", duration / 1000)
             TotaltimeType.MeasurementMicroseconds -> metrics.measure("totaltime", duration / 1000)
