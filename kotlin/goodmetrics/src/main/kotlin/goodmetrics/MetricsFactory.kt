@@ -60,10 +60,20 @@ class MetricsFactory(
     /**
      * Passes a Metrics into your scope. Record your unit of work; when the scope exits
      * the Metrics will be stamped with `totaltime` and emitted through the pipeline.
+     */
+    inline fun <T> record(name: String, stampAt: TimestampAt = TimestampAt.Start, block: (Metrics) -> T): T {
+        return recordWithBehavior(name, stampAt, MetricsBehavior.DEFAULT, block)
+    }
+
+    /**
+     * Passes a Metrics into your scope. Record your unit of work; when the scope exits
+     * the Metrics will be stamped with `totaltime` and emitted through the pipeline.
+     *
+     * Allows for setting specific MetricsBehaviors for the metric.
      *
      * If you don't want `totaltime` timeseries data, then specify `metricBehavior: MetricBehavior.NO_TOTALTIME`.
      */
-    inline fun <T> record(name: String, stampAt: TimestampAt = TimestampAt.Start, metricsBehavior: MetricsBehavior = MetricsBehavior.DEFAULT, block: (Metrics) -> T): T {
+    inline fun <T> recordWithBehavior(name: String, stampAt: TimestampAt = TimestampAt.Start, metricsBehavior: MetricsBehavior, block: (Metrics) -> T): T {
         contract {
             callsInPlace(block, InvocationKind.EXACTLY_ONCE)
         }

@@ -44,7 +44,7 @@ internal class MetricsFactoryTest {
             totaltimeType = MetricsFactory.TotaltimeType.DistributionMicroseconds
         )
 
-        metricsFactory.record("test", metricsBehavior = MetricsBehavior.NO_TOTALTIME) { metrics ->
+        metricsFactory.recordWithBehavior("test", metricsBehavior = MetricsBehavior.NO_TOTALTIME) { metrics ->
             metrics.dimension("a_dimension", "a")
             metrics.measure("a_measurement", 0)
             metrics.distribution("a_distribution", 1)
@@ -88,7 +88,7 @@ internal class MetricsFactoryTest {
             totaltimeType = MetricsFactory.TotaltimeType.MeasurementMicroseconds
         )
 
-        metricsFactory.record("test", metricsBehavior = MetricsBehavior.NO_TOTALTIME) { metrics ->
+        metricsFactory.recordWithBehavior("test", metricsBehavior = MetricsBehavior.NO_TOTALTIME) { metrics ->
             metrics.dimension("a_dimension", "a")
             metrics.measure("a_measurement", 0)
             metrics.distribution("a_distribution", 1)
