@@ -62,6 +62,9 @@ class MetricsFactory(
      * the Metrics will be stamped with `totaltime` and emitted through the pipeline.
      */
     inline fun <T> record(name: String, stampAt: TimestampAt = TimestampAt.Start, block: (Metrics) -> T): T {
+        contract {
+            callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+        }
         return recordWithBehavior(name, stampAt, MetricsBehavior.DEFAULT, block)
     }
 
