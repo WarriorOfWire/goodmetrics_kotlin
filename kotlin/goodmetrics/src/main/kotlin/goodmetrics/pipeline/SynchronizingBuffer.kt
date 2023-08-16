@@ -26,6 +26,10 @@ class SynchronizingBuffer(
         metricsQueue.trySend(metrics)
     }
 
+    override fun close() {
+        metricsQueue.close()
+    }
+
     private fun failedToDeliver(_metrics: Metrics) {
         // TODO: record metrics
     }

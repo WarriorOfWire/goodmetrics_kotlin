@@ -161,14 +161,20 @@ class MetricsSetups private constructor() {
                 compressionMode = compressionMode,
             )
 
-            val unarySink = MetricsSink { metrics ->
-                runBlocking {
-                    onSendUnary(listOf(metrics))
-                    try {
-                        client.sendMetricsBatch(listOf(metrics))
-                    } catch (e: Exception) {
-                        logError("error while sending blocking metrics", e)
+            val unarySink = object : MetricsSink {
+                override fun emit(metrics: Metrics) {
+                    runBlocking {
+                        onSendUnary(listOf(metrics))
+                        try {
+                            client.sendMetricsBatch(listOf(metrics))
+                        } catch (e: Exception) {
+                            logError("error while sending blocking metrics", e)
+                        }
                     }
+                }
+
+                override fun close() {
+                    client.close()
                 }
             }
 

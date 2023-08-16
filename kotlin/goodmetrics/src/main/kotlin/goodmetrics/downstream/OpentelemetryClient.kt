@@ -74,7 +74,7 @@ class OpentelemetryClient(
     private val timeout: Duration,
     private val logRawPayload: (ResourceMetrics) -> Unit = { },
     private val compressionMode: CompressionMode,
-) {
+) : AutoCloseable {
     companion object {
         fun connect(
             sillyOtlpHostname: String = "localhost",
@@ -371,5 +371,9 @@ class OpentelemetryClient(
                 value = anyValue { stringValue = v.value }
             }
         }
+    }
+
+    override fun close() {
+        channel.shutdown()
     }
 }

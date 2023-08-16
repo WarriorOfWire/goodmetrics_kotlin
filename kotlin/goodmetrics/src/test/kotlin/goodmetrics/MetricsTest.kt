@@ -1,5 +1,6 @@
 package goodmetrics
 
+import goodmetrics.pipeline.MetricsSink
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -7,13 +8,22 @@ import kotlin.test.assertEquals
 internal class MetricsTest {
     private lateinit var metricsFactory: MetricsFactory
     private val emittedMetrics: MutableList<Metrics> = mutableListOf()
+    private val testMetricsSink = object : MetricsSink {
+        override fun emit(metrics: Metrics) {
+            emittedMetrics.add(metrics)
+        }
+
+        override fun close() {
+            // nothing to do here
+        }
+    }
     private var nowNanos = 0L
 
     @BeforeTest
     fun before() {
         nowNanos = 0
         emittedMetrics.clear()
-        metricsFactory = MetricsFactory(sink = emittedMetrics::add, timeSource = { nowNanos }, totaltimeType = MetricsFactory.TotaltimeType.DistributionMicroseconds)
+        metricsFactory = MetricsFactory(sink = testMetricsSink, timeSource = { nowNanos }, totaltimeType = MetricsFactory.TotaltimeType.DistributionMicroseconds)
     }
 
     @Test

@@ -35,7 +35,7 @@ class MetricsFactory(
     private val sink: MetricsSink,
     @PublishedApi internal val timeSource: NanoTimeSource,
     private val totaltimeType: TotaltimeType
-) {
+) : AutoCloseable {
     /**
      * Tools for making abstractions around the metrics factory other than the usual record{} pattern.
      */
@@ -126,5 +126,9 @@ class MetricsFactory(
             TotaltimeType.MeasurementMicroseconds -> metrics.measure("totaltime", duration / 1000)
             TotaltimeType.None -> {}
         }
+    }
+
+    override fun close() {
+        sink.close()
     }
 }

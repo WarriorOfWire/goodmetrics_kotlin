@@ -125,6 +125,10 @@ class Aggregator(
             }
         }
     }
+
+    override fun close() {
+        // nothing to do here now
+    }
 }
 
 typealias DimensionPosition = Set<Metrics.Dimension>
