@@ -54,6 +54,7 @@ class GoodmetricsClient private constructor(
                     for ((measurement, aggregation) in measurementMap) {
                         templateDatum.measurementsMap[measurement] = aggregation.toProto()
                     }
+                    this.metrics.add(templateDatum)
                 }
             }
         }
