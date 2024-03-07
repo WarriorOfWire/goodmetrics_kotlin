@@ -195,13 +195,13 @@ class OpentelemetryClient(
         aggregationWidth: Duration,
         dimensions: Iterable<KeyValue>,
     ): Sequence<Metric> = sequence {
-        yield(statisticSetDataPoint(metric, measurementName, "min", min, timestampNanos, aggregationWidth, dimensions))
-        yield(statisticSetDataPoint(metric, measurementName, "max", max, timestampNanos, aggregationWidth, dimensions))
-        yield(statisticSetDataPoint(metric, measurementName, "sum", sum, timestampNanos, aggregationWidth, dimensions))
-        yield(statisticSetDataPoint(metric, measurementName, "count", count, timestampNanos, aggregationWidth, dimensions))
+        yield(statisticSetDataPointGauge(metric, measurementName, "min", min, timestampNanos, aggregationWidth, dimensions))
+        yield(statisticSetDataPointGauge(metric, measurementName, "max", max, timestampNanos, aggregationWidth, dimensions))
+        yield(statisticSetDataPointCounter(metric, measurementName, "sum", sum, timestampNanos, aggregationWidth, dimensions))
+        yield(statisticSetDataPointCounter(metric, measurementName, "count", count, timestampNanos, aggregationWidth, dimensions))
     }
 
-    private fun statisticSetDataPoint(
+    private fun statisticSetDataPointCounter(
         metricName: String,
         measurementName: String,
         statisticSetComponent: String,
@@ -213,12 +213,29 @@ class OpentelemetryClient(
         name = "${metricName}_${measurementName}_$statisticSetComponent"
         unit = "1"
         sum = sum {
-            isMonotonic = false
+            isMonotonic = true
             // because cumulative is bullshit
             aggregationTemporality = AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA
             dataPoints.add(newNumberDataPoint(value, timestampNanos, aggregationWidth, dimensions))
         }
     }
+
+    private fun statisticSetDataPointGauge(
+        metricName: String,
+        measurementName: String,
+        statisticSetComponent: String,
+        value: Number,
+        timestampNanos: Long,
+        aggregationWidth: Duration,
+        dimensions: Iterable<KeyValue>,
+    ): Metric = metric {
+        name = "${metricName}_${measurementName}_$statisticSetComponent"
+        unit = "1"
+        gauge = gauge {
+            dataPoints.add(newNumberDataPoint(value, timestampNanos, aggregationWidth, dimensions))
+        }
+    }
+
 
     private fun Metrics.asGoofyOtlpMetricSequence(): Sequence<Metric> {
         val otlpDimensions = metricDimensions.values.map { it.asOtlpKeyValue() }
