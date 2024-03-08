@@ -377,7 +377,7 @@ class MetricsSetups private constructor() {
             return sink
         }
 
-        private fun opentelemetryClient(
+        fun opentelemetryClient(
             authToken: String,
             authHeaderName: String,
             ingestUrl: String,
