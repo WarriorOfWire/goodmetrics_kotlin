@@ -70,7 +70,8 @@ sealed interface CompressionMode {
  */
 class OpentelemetryClient(
     private val channel: ManagedChannel,
-    private val prescientDimensions: PrescientDimensions,
+    private val prescientResourceDimensions: PrescientDimensions.AsResource,
+    private val prescientSharedDimensions: PrescientDimensions.AsDimensions,
     private val timeout: Duration,
     private val logRawPayload: (ResourceMetrics) -> Unit = { },
     private val compressionMode: CompressionMode,
@@ -79,7 +80,8 @@ class OpentelemetryClient(
         fun connect(
             sillyOtlpHostname: String = "localhost",
             port: Int = 5001,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             securityMode: SecurityMode,
             /**
              * stuff like MetadataUtils.newAttachHeadersInterceptor()
@@ -107,7 +109,7 @@ class OpentelemetryClient(
                 }
             }
             channelBuilder.intercept(interceptors)
-            return OpentelemetryClient(channelBuilder.build(), prescientDimensions, timeout, logRawPayload, compressionMode)
+            return OpentelemetryClient(channelBuilder.build(), prescientResourceDimensions, prescientSharedDimensions, timeout, logRawPayload, compressionMode)
         }
     }
     private fun stub(): MetricsServiceGrpcKt.MetricsServiceCoroutineStub {
@@ -144,7 +146,7 @@ class OpentelemetryClient(
 
     private fun asResourceMetricsFromBatch(batch: List<AggregatedBatch>): ResourceMetrics {
         return resourceMetrics {
-            prescientResource?.let { this.resource = it }
+            resource = prescientResource
             for (aggregate in batch) {
                 this.scopeMetrics.add(aggregate.asOtlpScopeMetrics())
             }
@@ -157,7 +159,7 @@ class OpentelemetryClient(
     }
 
     private fun asResourceMetrics(batch: List<Metrics>): ResourceMetrics = resourceMetrics {
-        prescientResource?.let { this.resource = it }
+        resource = prescientResource
         this.scopeMetrics.add(asScopeMetrics(batch))
     }
 
@@ -170,10 +172,7 @@ class OpentelemetryClient(
         for ((position, measurements) in this@asGoofyOtlpMetricSequence.positions) {
             // Push down our shared dimensions to each datum leaf if required. For systems that may ingest OTLP metrics
             // but use a different backing system (e.g. OTLP -> Prometheus)
-            val otlpDimensions = position.map { it.asOtlpKeyValue() } + when (prescientDimensions) {
-                is PrescientDimensions.AsDimensions ->  prescientDimensions.sharedDimensions.asOtlpDimensions()
-                is PrescientDimensions.AsResource -> emptySequence()
-            }
+            val otlpDimensions = position.map { it.asOtlpKeyValue() } + prescientSharedDimensions.sharedDimensions.asOtlpDimensions()
             for ((measurementName, aggregation) in measurements) {
                 when (aggregation) {
                     is Aggregation.Histogram -> {
@@ -362,15 +361,8 @@ class OpentelemetryClient(
     }
 
     private val prescientResource by lazy {
-        when (prescientDimensions) {
-            is PrescientDimensions.AsDimensions -> {
-                null
-            }
-            is PrescientDimensions.AsResource -> {
-                resource {
-                    attributes.addAll(prescientDimensions.resourceDimensions.asOtlpDimensions().asIterable())
-                }
-            }
+        resource {
+            attributes.addAll(prescientResourceDimensions.resourceDimensions.asOtlpDimensions().asIterable())
         }
     }
 
