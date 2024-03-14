@@ -168,7 +168,12 @@ class OpentelemetryClient(
 
     private fun AggregatedBatch.asGoofyOtlpMetricSequence(): Sequence<Metric> = sequence {
         for ((position, measurements) in this@asGoofyOtlpMetricSequence.positions) {
-            val otlpDimensions = position.map { it.asOtlpKeyValue() }
+            // Push down our shared dimensions to each datum leaf if required. For systems that may ingest OTLP metrics
+            // but use a different backing system (e.g. OTLP -> Prometheus)
+            val otlpDimensions = position.map { it.asOtlpKeyValue() } + when (prescientDimensions) {
+                is PrescientDimensions.AsDimensions ->  prescientDimensions.sharedDimensions.asOtlpDimensions()
+                is PrescientDimensions.AsResource -> emptySequence()
+            }
             for ((measurementName, aggregation) in measurements) {
                 when (aggregation) {
                     is Aggregation.Histogram -> {
