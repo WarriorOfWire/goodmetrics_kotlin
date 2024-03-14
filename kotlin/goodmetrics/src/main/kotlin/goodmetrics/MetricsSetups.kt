@@ -66,7 +66,8 @@ class MetricsSetups private constructor() {
          */
         fun CoroutineScope.lightstepNativeOtlp(
             lightstepAccessToken: String,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             aggregationWidth: Duration,
             logError: (message: String, exception: Exception) -> Unit,
             onLightstepTrailers: (Status, Metadata) -> Unit = { status, trailers ->
@@ -100,7 +101,8 @@ class MetricsSetups private constructor() {
                 "lightstep-access-token",
                 lightstepUrl,
                 lightstepPort,
-                prescientDimensions,
+                prescientResourceDimensions = prescientResourceDimensions,
+                prescientSharedDimensions = prescientSharedDimensions,
                 lightstepConnectionSecurityMode,
                 onLightstepTrailers,
                 timeout,
@@ -134,7 +136,8 @@ class MetricsSetups private constructor() {
          */
         fun lightstepNativeOtlpButItSendsMetricsUponRecordingForLambda(
             lightstepAccessToken: String,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             logError: (message: String, exception: Exception) -> Unit,
             onLightstepTrailers: (Status, Metadata) -> Unit = { status, trailers ->
                 println("got trailers from lightstep. Status: $status, Trailers: $trailers")
@@ -151,7 +154,8 @@ class MetricsSetups private constructor() {
                 "lightstep-access-token",
                 lightstepUrl,
                 lightstepPort,
-                prescientDimensions,
+                prescientResourceDimensions = prescientResourceDimensions,
+                prescientSharedDimensions = prescientSharedDimensions,
                 lightstepConnectionSecurityMode,
                 onLightstepTrailers,
                 timeout,
@@ -167,7 +171,8 @@ class MetricsSetups private constructor() {
         fun CoroutineScope.rawNativeOtlp(
             accessToken: String,
             authHeaderName: String,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             aggregationWidth: Duration,
             logError: (message: String, exception: Exception) -> Unit,
             onIngestTrailers: (Status, Metadata) -> Unit = { status, trailers ->
@@ -196,7 +201,8 @@ class MetricsSetups private constructor() {
                 authHeaderName,
                 ingestUrl,
                 ingestPort,
-                prescientDimensions,
+                prescientResourceDimensions = prescientResourceDimensions,
+                prescientSharedDimensions = prescientSharedDimensions,
                 connectionSecurityMode,
                 onIngestTrailers,
                 timeout,
@@ -231,7 +237,8 @@ class MetricsSetups private constructor() {
         fun rawNativeOtlpButItSendsMetricsUponRecordingForLambda(
             accessToken: String,
             authHeaderName: String,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             logError: (message: String, exception: Exception) -> Unit,
             onIngestTrailers: (Status, Metadata) -> Unit = { status, trailers ->
                 println("got trailers from ingest. Status: $status, Trailers: $trailers")
@@ -248,7 +255,8 @@ class MetricsSetups private constructor() {
                 authHeaderName,
                 ingestUrl,
                 ingestPort,
-                prescientDimensions,
+                prescientResourceDimensions = prescientResourceDimensions,
+                prescientSharedDimensions = prescientSharedDimensions,
                 connectionSecurityMode,
                 onIngestTrailers,
                 timeout,
@@ -382,7 +390,8 @@ class MetricsSetups private constructor() {
             authHeaderName: String,
             ingestUrl: String,
             ingestPort: Int,
-            prescientDimensions: PrescientDimensions,
+            prescientResourceDimensions: PrescientDimensions.AsResource,
+            prescientSharedDimensions: PrescientDimensions.AsDimensions,
             securityMode: SecurityMode,
             onIngestTrailers: (Status, Metadata) -> Unit,
             timeout: Duration,
@@ -398,7 +407,8 @@ class MetricsSetups private constructor() {
             return OpentelemetryClient.connect(
                 sillyOtlpHostname = ingestUrl,
                 port = ingestPort,
-                prescientDimensions = prescientDimensions,
+                prescientResourceDimensions = prescientResourceDimensions,
+                prescientSharedDimensions = prescientSharedDimensions,
                 securityMode = securityMode,
                 interceptors = listOf(
                     MetadataUtils.newAttachHeadersInterceptor(authHeader),

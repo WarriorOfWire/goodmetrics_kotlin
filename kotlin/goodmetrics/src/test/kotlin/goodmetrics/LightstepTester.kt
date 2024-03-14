@@ -17,13 +17,14 @@ fun main() {
     runBlocking {
         val configuredMetrics = lightstepNativeOtlp(
             lightstepAccessToken = System.getenv("lightsteptoken") ?: "none",
-            prescientDimensions = PrescientDimensions.AsResource(
+            prescientResourceDimensions = PrescientDimensions.AsResource(
                 mapOf(
                     "service.name" to Metrics.Dimension.String("service.name", "goodmetrics_test"),
                     "service.version" to Metrics.Dimension.String("service.version", OpentelemetryClient::class.java.`package`.implementationVersion ?: "dev"),
                     "host.hostname" to Metrics.Dimension.String("host.hostname", InetAddress.getLocalHost().hostName)
                 )
             ),
+            prescientSharedDimensions = PrescientDimensions.AsDimensions(emptyMap()),
             aggregationWidth = 10.seconds,
             logError = { message, exception -> println("metrics error: $message, ex: ${exception.message}") },
             onSendUnary = { println("sending unary batch size: ${it.size}") },
