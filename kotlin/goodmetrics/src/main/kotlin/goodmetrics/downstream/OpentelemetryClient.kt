@@ -47,12 +47,6 @@ sealed interface PrescientDimensions {
      * downstreams that either do not support or do something undesirable with Resource dimensions.
      */
     data class AsDimensions(val sharedDimensions: Map<String, Metrics.Dimension>) : PrescientDimensions
-
-    /**
-     * Include resource dimensions on the OTLP resource AND on each metric itself. You'd use this
-     * downstream that ingest as OTLP resources but convert to some other backend system (e.g. Prometheus).
-     */
-    data class AsMixedResourceDimensions(val resourceAndSharedDimensions: Map<String, Metrics.Dimension>) : PrescientDimensions
 }
 
 enum class SecurityMode {
@@ -176,10 +170,9 @@ class OpentelemetryClient(
         for ((position, measurements) in this@asGoofyOtlpMetricSequence.positions) {
             // Push down our shared dimensions to each datum leaf if required. For systems that may ingest OTLP metrics
             // but use a different backing system (e.g. OTLP -> Prometheus)
-            val otlpDimensions = when (prescientDimensions) {
-                is PrescientDimensions.AsDimensions -> position.map { it.asOtlpKeyValue() } + prescientDimensions.sharedDimensions.asOtlpDimensions().toList()
-                is PrescientDimensions.AsMixedResourceDimensions -> position.map { it.asOtlpKeyValue() } + prescientDimensions.resourceAndSharedDimensions.asOtlpDimensions().toList()
-                is PrescientDimensions.AsResource -> position.map { it.asOtlpKeyValue() }
+            val otlpDimensions = position.map { it.asOtlpKeyValue() } + when (prescientDimensions) {
+                is PrescientDimensions.AsDimensions ->  prescientDimensions.sharedDimensions.asOtlpDimensions()
+                is PrescientDimensions.AsResource -> emptySequence()
             }
             for ((measurementName, aggregation) in measurements) {
                 when (aggregation) {
@@ -376,11 +369,6 @@ class OpentelemetryClient(
             is PrescientDimensions.AsResource -> {
                 resource {
                     attributes.addAll(prescientDimensions.resourceDimensions.asOtlpDimensions().asIterable())
-                }
-            }
-            is PrescientDimensions.AsMixedResourceDimensions -> {
-                resource {
-                    attributes.addAll(prescientDimensions.resourceAndSharedDimensions.asOtlpDimensions().asIterable())
                 }
             }
         }
