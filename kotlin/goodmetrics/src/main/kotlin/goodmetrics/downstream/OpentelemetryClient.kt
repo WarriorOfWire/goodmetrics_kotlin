@@ -242,7 +242,7 @@ class OpentelemetryClient(
 
 
     private fun Metrics.asGoofyOtlpMetricSequence(): Sequence<Metric> {
-        val otlpDimensions = metricDimensions.values.map { it.asOtlpKeyValue() }
+        val otlpDimensions = metricDimensions.values.map { it.asOtlpKeyValue() } + prescientSharedDimensions.sharedDimensions.asOtlpDimensions()
         return sequence {
             for ((measurementName, value) in this@asGoofyOtlpMetricSequence.metricMeasurements) {
                 yield(
