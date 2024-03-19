@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAccumulator
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.concurrent.atomic.LongAdder
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.E
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
@@ -227,10 +228,23 @@ sealed interface Aggregation {
         val maxBucketCount: UInt = 160u,
         var bucketStartOffset: UInt = 0u,
         val positiveBuckets: ArrayDeque<Long> = ArrayDeque(),
-        val negativeBuckets: ArrayDeque<Long> = ArrayDeque()
+        val negativeBuckets: ArrayDeque<Long> = ArrayDeque(),
+        private val reentrantLock: ReentrantLock = ReentrantLock(),
     ) : Aggregation {
 
-        fun accumulate(value: Double) {
+        /**
+         * Ensures our exponential histogram is thread-safe.
+         */
+        private inline fun <T> withLockedState(block: () -> T): T {
+            reentrantLock.lock()
+            try {
+                return block()
+            } finally {
+                reentrantLock.unlock()
+            }
+        }
+
+        fun accumulate(value: Double) = withLockedState {
             accumulateCount(value, 1)
         }
 
@@ -331,45 +345,47 @@ sealed interface Aggregation {
             }
         }
 
-        private fun isEmpty(): Boolean = positiveBuckets.isEmpty() && negativeBuckets.isEmpty()
+        private fun isEmpty(): Boolean = withLockedState { positiveBuckets.isEmpty() && negativeBuckets.isEmpty() }
 
-        fun count(): Long = positiveBuckets.sum() + negativeBuckets.sum()
+        fun count(): Long = withLockedState { positiveBuckets.sum() + negativeBuckets.sum() }
 
         /**
          * This is an approximation, just using the positive buckets for the sum.
          */
-        fun sum(): Double = positiveBuckets.mapIndexed { index, count -> lowerBoundary(actualScale.toInt(), index.toUInt()) * count }.sum()
+        fun sum(): Double = withLockedState {
+            positiveBuckets.mapIndexed { index, count -> lowerBoundary(actualScale.toInt(), index.toUInt()) * count }.sum()
+        }
 
         /**
          * This is an approximation, just using the positive buckets for the min.
          */
-        fun min(): Double {
+        fun min(): Double = withLockedState {
             return positiveBuckets.withIndex().firstOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
         }
 
-        fun max(): Double {
+        fun max(): Double  = withLockedState {
             return positiveBuckets.withIndex().lastOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
         }
 
-        fun scale(): Int = actualScale.toInt()
+        fun scale(): Int = withLockedState { actualScale.toInt() }
 
-        fun bucketStartOffset(): Int = bucketStartOffset.toInt()
+        fun bucketStartOffset(): Int = withLockedState {  bucketStartOffset.toInt() }
 
-        fun takePositives(): ArrayDeque<Long> {
+        fun takePositives(): ArrayDeque<Long> = withLockedState {
             val positives = ArrayDeque(positiveBuckets)
             this.positiveBuckets.clear()
             return positives
         }
 
-        fun takeNegatives(): ArrayDeque<Long> {
+        fun takeNegatives(): ArrayDeque<Long> = withLockedState {
             val negatives = ArrayDeque(negativeBuckets)
             this.negativeBuckets.clear()
             return negatives
         }
 
-        fun hasNegatives(): Boolean = this.negativeBuckets.isNotEmpty()
+        fun hasNegatives(): Boolean = withLockedState { this.negativeBuckets.isNotEmpty() }
 
-        fun valueCounts(): Sequence<Pair<Double, Long>> {
+        fun valueCounts(): Sequence<Pair<Double, Long>> = withLockedState {
             return this.negativeBuckets.mapIndexed { index, count ->
                 Pair(
                     lowerBoundary(actualScale.toInt(), bucketStartOffset + index.toUInt()),

@@ -13,6 +13,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 
 internal class AggregatorTest {
     lateinit var gotBatch: Mutex
@@ -322,5 +324,46 @@ internal class AggregatorTest {
                 e.accumulate(-1_000_000_000_000_000.0 * Random.nextDouble())
             }
         }
+    }
+
+    // Verify multi-threaded access is indeed safe
+    @Test
+    fun testExponentialHistogramMultiThreadedAccess() = runBlocking {
+        val e = Aggregation.ExponentialHistogram(0u)
+        listOf(
+            // coroutine 1
+            launch {
+                // Accumulate at the same time as 2
+                e.accumulate(1.0)
+                // coroutine 2 should be accumulating
+                assertEquals(1, e.count())
+                // Wait
+                delay(5.milliseconds)
+                e.accumulate(50_000_000.0)
+                // Wait while coroutine 2 does more aggregations
+                delay(2.milliseconds)
+                // Both should be asserting the same thing is true
+                assertTrue(e.count() >= 5)
+            },
+            // coroutine 2
+            launch {
+                // Accumulate at the same time as 1
+                e.accumulate(2.0)
+                assertEquals(2, e.count())
+                // We've accumulated at the same time, so we should only have 2 counts
+                assertTrue(e.count() <= 2)
+                // Wait
+                delay(5.milliseconds)
+                // Coroutine 1 should have accumulated again, so we should have 3 counts
+                assertTrue(e.count() >= 3)
+                // Now accumulate some more
+                e.accumulate(5.0)
+                e.accumulate(42_000_000.0)
+                delay(2.milliseconds)
+                // Both should be asserting the same thing is true
+                assertTrue(e.count() >= 5)
+            }
+        ).joinAll()
+
     }
 }
