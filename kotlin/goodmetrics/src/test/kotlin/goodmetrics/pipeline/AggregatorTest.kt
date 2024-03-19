@@ -341,9 +341,9 @@ internal class AggregatorTest {
                 delay(5.milliseconds)
                 e.accumulate(50_000_000.0)
                 // Wait while coroutine 2 does more aggregations
-                delay(2.milliseconds)
+                delay(5.milliseconds)
                 // Both should be asserting the same thing is true
-                assertTrue(e.count() >= 5)
+                assertEquals(5, e.count())
             },
             // coroutine 2
             launch {
@@ -361,7 +361,7 @@ internal class AggregatorTest {
                 e.accumulate(42_000_000.0)
                 delay(2.milliseconds)
                 // Both should be asserting the same thing is true
-                assertTrue(e.count() >= 5)
+                assertEquals(5, e.count())
             }
         ).joinAll()
 

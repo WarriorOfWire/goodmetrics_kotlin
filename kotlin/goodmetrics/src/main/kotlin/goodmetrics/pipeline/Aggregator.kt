@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAccumulator
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.concurrent.atomic.LongAdder
-import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.E
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
@@ -229,22 +228,10 @@ sealed interface Aggregation {
         var bucketStartOffset: UInt = 0u,
         val positiveBuckets: ArrayDeque<Long> = ArrayDeque(),
         val negativeBuckets: ArrayDeque<Long> = ArrayDeque(),
-        private val reentrantLock: ReentrantLock = ReentrantLock(),
+        private val lock: Any = Object(),
     ) : Aggregation {
 
-        /**
-         * Ensures our exponential histogram is thread-safe.
-         */
-        private inline fun <T> withLockedState(block: () -> T): T {
-            reentrantLock.lock()
-            try {
-                return block()
-            } finally {
-                reentrantLock.unlock()
-            }
-        }
-
-        fun accumulate(value: Double) = withLockedState {
+        fun accumulate(value: Double) = synchronized(lock) {
             accumulateCount(value, 1)
         }
 
@@ -345,47 +332,47 @@ sealed interface Aggregation {
             }
         }
 
-        private fun isEmpty(): Boolean = withLockedState { positiveBuckets.isEmpty() && negativeBuckets.isEmpty() }
+        private fun isEmpty(): Boolean = synchronized(lock) { positiveBuckets.isEmpty() && negativeBuckets.isEmpty() }
 
-        fun count(): Long = withLockedState { positiveBuckets.sum() + negativeBuckets.sum() }
+        fun count(): Long = synchronized(lock) { positiveBuckets.sum() + negativeBuckets.sum() }
 
         /**
          * This is an approximation, just using the positive buckets for the sum.
          */
-        fun sum(): Double = withLockedState {
+        fun sum(): Double = synchronized(lock) {
             positiveBuckets.mapIndexed { index, count -> lowerBoundary(actualScale.toInt(), index.toUInt()) * count }.sum()
         }
 
         /**
          * This is an approximation, just using the positive buckets for the min.
          */
-        fun min(): Double = withLockedState {
+        fun min(): Double = synchronized(lock) {
             return positiveBuckets.withIndex().firstOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
         }
 
-        fun max(): Double  = withLockedState {
+        fun max(): Double  = synchronized(lock) {
             return positiveBuckets.withIndex().lastOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
         }
 
-        fun scale(): Int = withLockedState { actualScale.toInt() }
+        fun scale(): Int = synchronized(lock) { actualScale.toInt() }
 
-        fun bucketStartOffset(): Int = withLockedState {  bucketStartOffset.toInt() }
+        fun bucketStartOffset(): Int = synchronized(lock) {  bucketStartOffset.toInt() }
 
-        fun takePositives(): ArrayDeque<Long> = withLockedState {
+        fun takePositives(): ArrayDeque<Long> = synchronized(lock) {
             val positives = ArrayDeque(positiveBuckets)
             this.positiveBuckets.clear()
             return positives
         }
 
-        fun takeNegatives(): ArrayDeque<Long> = withLockedState {
+        fun takeNegatives(): ArrayDeque<Long> = synchronized(lock) {
             val negatives = ArrayDeque(negativeBuckets)
             this.negativeBuckets.clear()
             return negatives
         }
 
-        fun hasNegatives(): Boolean = withLockedState { this.negativeBuckets.isNotEmpty() }
+        fun hasNegatives(): Boolean = synchronized(lock) { this.negativeBuckets.isNotEmpty() }
 
-        fun valueCounts(): Sequence<Pair<Double, Long>> = withLockedState {
+        fun valueCounts(): Sequence<Pair<Double, Long>> = synchronized(lock) {
             return this.negativeBuckets.mapIndexed { index, count ->
                 Pair(
                     lowerBoundary(actualScale.toInt(), bucketStartOffset + index.toUInt()),
