@@ -11,9 +11,20 @@ import org.openjdk.jmh.annotations.Warmup
 import java.util.concurrent.TimeUnit
 
 import goodmetrics.Metrics
+import goodmetrics.MetricsFactory
+import goodmetrics.NanoTimeSource
+import goodmetrics.TimestampAt
+import goodmetrics.pipeline.MetricsSink
 import org.openjdk.jmh.annotations.OperationsPerInvocation
 import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.State
+
+object Sink: MetricsSink {
+    override fun emit(metrics: Metrics) {
+    }
+    override fun close() {
+    }
+}
 
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.SampleTime)
@@ -23,60 +34,66 @@ import org.openjdk.jmh.annotations.State
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
 open class MetricsBenchmark {
-    val m = Metrics()
+    val metricsFactory = MetricsFactory(
+        Sink,
+        NanoTimeSource.fastNanoTime,
+        MetricsFactory.TotaltimeType.None,
+    )
+
+    val m = metricsFactory.internals.getMetrics("benchmark", TimestampAt.Start)
 
     @Benchmark
     @OperationsPerInvocation(50)
     fun recordInt() {
-        m.measuremeI("lel", 42)
-        m.measuremeI("lel2", 42)
-        m.measuremeI("lel23", 42)
-        m.measuremeI("lel234", 42)
-        m.measuremeI("lel2345", 42)
-        m.measuremeI("lel23456", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
-        m.measuremeI("lel234567", 42)
+        m.measure("lel", 42)
+        m.measure("lel2", 42)
+        m.measure("lel23", 42)
+        m.measure("lel234", 42)
+        m.measure("lel2345", 42)
+        m.measure("lel23456", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
+        m.measure("lel234567", 42)
     }
 }
