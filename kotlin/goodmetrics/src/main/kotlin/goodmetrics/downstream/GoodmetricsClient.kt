@@ -17,6 +17,7 @@ import io.goodmetrics.statisticSet
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
+import kotlin.math.roundToLong
 
 class GoodmetricsClient private constructor(
     private val stub: MetricsGrpcKt.MetricsCoroutineStub,
@@ -153,6 +154,14 @@ fun Aggregation.toProto(): Measurement = measurement {
             histogram = histogram {
                 for ((bucket, count) in this@toProto.bucketCounts) {
                     buckets[bucket] = count.sum()
+                }
+            }
+        }
+        is Aggregation.ExponentialHistogram -> {
+            val bucketCounts = this@toProto.valueCounts().map { (value, count) -> Pair(value.roundToLong(), count)}.toMap()
+            histogram = histogram {
+                for ((bucket, count) in bucketCounts) {
+                    buckets[bucket] = count
                 }
             }
         }
