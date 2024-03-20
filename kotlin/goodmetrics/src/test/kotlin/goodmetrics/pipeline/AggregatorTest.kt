@@ -1,6 +1,7 @@
 package goodmetrics.pipeline
 
 import goodmetrics.Metrics
+import java.util.concurrent.Executors
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 import kotlinx.coroutines.launch
@@ -326,44 +327,25 @@ internal class AggregatorTest {
         }
     }
 
-    // Verify multi-threaded access is indeed safe
+    // Verify multi threaded access is indeed safe
     @Test
-    fun testExponentialHistogramMultiThreadedAccess() = runBlocking {
+    fun testExponentialHistogramMultiThreadedAccess() {
         val e = Aggregation.ExponentialHistogram(0u)
-        listOf(
-            // coroutine 1
-            launch {
-                // Accumulate at the same time as 2
-                e.accumulate(1.0)
-                // coroutine 2 should be accumulating
-                assertEquals(1, e.count())
-                // Wait
-                delay(5.milliseconds)
-                e.accumulate(50_000_000.0)
-                // Wait while coroutine 2 does more aggregations
-                delay(5.milliseconds)
-                // Both should be asserting the same thing is true
-                assertEquals(5, e.count())
-            },
-            // coroutine 2
-            launch {
-                // Accumulate at the same time as 1
-                e.accumulate(2.0)
-                assertEquals(2, e.count())
-                // We've accumulated at the same time, so we should only have 2 counts
-                assertTrue(e.count() <= 2)
-                // Wait
-                delay(5.milliseconds)
-                // Coroutine 1 should have accumulated again, so we should have 3 counts
-                assertTrue(e.count() >= 3)
-                // Now accumulate some more
-                e.accumulate(5.0)
-                e.accumulate(42_000_000.0)
-                delay(2.milliseconds)
-                // Both should be asserting the same thing is true
-                assertEquals(5, e.count())
+        val executorService = Executors.newFixedThreadPool(8)
+        for (i in 0 until 8) {
+            executorService.execute {
+                for (j in 0 until 10_000) {
+                    e.accumulate(1.0)
+                }
             }
-        ).joinAll()
-
+        }
+        executorService.shutdown()
+        while (!executorService.isTerminated) {
+            // wait
+        }
+        // Should be 10_000 * 8
+        assertEquals(80000, e.count())
+        // Should be the result of 80_000 times `e.accumulate(1.0)` is called
+        assertEquals(9.671406556917032E28, e.sum())
     }
 }
