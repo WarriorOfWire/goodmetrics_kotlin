@@ -13,6 +13,7 @@ import goodmetrics.pipeline.AggregatedBatch
 import goodmetrics.pipeline.Aggregator
 import goodmetrics.pipeline.BatchSender.Companion.launchSender
 import goodmetrics.pipeline.Batcher
+import goodmetrics.pipeline.DistributionMode
 import goodmetrics.pipeline.MetricsSink
 import goodmetrics.pipeline.SynchronizingBuffer
 import io.grpc.Metadata
@@ -31,7 +32,7 @@ data class ConfiguredMetrics(
 
 class MetricsSetups private constructor() {
     companion object {
-        fun CoroutineScope.goodMetrics(goodmetricsHost: String = "localhost", port: Int = 9573, aggregationWidth: Duration = 10.seconds): ConfiguredMetrics {
+        fun CoroutineScope.goodMetrics(goodmetricsHost: String = "localhost", port: Int = 9573, aggregationWidth: Duration = 10.seconds, distributionMode: DistributionMode = DistributionMode.Histogram): ConfiguredMetrics {
             val unaryIncomingBuffer = SynchronizingBuffer()
             val unaryFactory = MetricsFactory(unaryIncomingBuffer, timeSource = NanoTimeSource.preciseNanoTime, totaltimeType = MetricsFactory.TotaltimeType.DistributionMicroseconds)
 
@@ -40,7 +41,7 @@ class MetricsSetups private constructor() {
                 sendMetricsBatch(batch)
             }
 
-            val preaggregatedIncomingBuffer = Aggregator(aggregationWidth)
+            val preaggregatedIncomingBuffer = Aggregator(aggregationWidth, distributionMode = distributionMode)
             val preaggregatedFactory = MetricsFactory(preaggregatedIncomingBuffer, timeSource = NanoTimeSource.fastNanoTime, totaltimeType = MetricsFactory.TotaltimeType.DistributionMicroseconds)
 
             val preaggregatedBatcher = Batcher(preaggregatedIncomingBuffer)
@@ -362,8 +363,10 @@ class MetricsSetups private constructor() {
             client: OpentelemetryClient,
             logError: (message: String, exception: Exception) -> Unit,
             onSendPreaggregated: (List<AggregatedBatch>) -> Unit,
+            // By default, use Histogram distribution mode since ExponentialHistograms are not frequently used
+            distributionMode: DistributionMode = DistributionMode.Histogram,
         ): Aggregator {
-            val sink = Aggregator(aggregationWidth = aggregationWidth)
+            val sink = Aggregator(aggregationWidth = aggregationWidth, distributionMode = distributionMode)
             val batcher = Batcher(
                 sink,
                 batchSize = batchSize,

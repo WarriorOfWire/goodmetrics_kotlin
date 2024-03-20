@@ -8,9 +8,12 @@ import goodmetrics.io.opentelemetry.proto.common.v1.anyValue
 import goodmetrics.io.opentelemetry.proto.common.v1.instrumentationScope
 import goodmetrics.io.opentelemetry.proto.common.v1.keyValue
 import goodmetrics.io.opentelemetry.proto.metrics.v1.AggregationTemporality
+import goodmetrics.io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPointKt.buckets
 import goodmetrics.io.opentelemetry.proto.metrics.v1.Metric
 import goodmetrics.io.opentelemetry.proto.metrics.v1.ResourceMetrics
 import goodmetrics.io.opentelemetry.proto.metrics.v1.ScopeMetrics
+import goodmetrics.io.opentelemetry.proto.metrics.v1.exponentialHistogram
+import goodmetrics.io.opentelemetry.proto.metrics.v1.exponentialHistogramDataPoint
 import goodmetrics.io.opentelemetry.proto.metrics.v1.gauge
 import goodmetrics.io.opentelemetry.proto.metrics.v1.histogram
 import goodmetrics.io.opentelemetry.proto.metrics.v1.histogramDataPoint
@@ -184,6 +187,15 @@ class OpentelemetryClient(
                             }
                         )
                     }
+                    is Aggregation.ExponentialHistogram -> {
+                        yield(
+                            metric {
+                                name = "${this@asGoofyOtlpMetricSequence.metric}_$measurementName"
+                                unit = "1"
+                                exponentialHistogram = aggregation.asOtlpExponentialHistogram(otlpDimensions, this@asGoofyOtlpMetricSequence.timestampNanos, aggregationWidth)
+                            }
+                        )
+                    }
                     is Aggregation.StatisticSet -> {
                         yieldAll(aggregation.statisticSetToOtlp(this@asGoofyOtlpMetricSequence.metric, measurementName, timestampNanos, aggregationWidth, otlpDimensions))
                     }
@@ -351,6 +363,39 @@ class OpentelemetryClient(
                 }
 
                 bucketCounts.add(0) // because OTLP is _stupid_ and defined histogram format to have an implicit infinity bucket.
+            }
+        )
+    }
+
+    private fun Aggregation.ExponentialHistogram.asOtlpExponentialHistogram(
+        otlpDimensions: Iterable<KeyValue>,
+        timestampNanos: Long,
+        aggregationWidth: Duration,
+    ) = exponentialHistogram {
+        aggregationTemporality = AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA
+        dataPoints.add(
+            exponentialHistogramDataPoint {
+                attributes.addAll(otlpDimensions)
+                startTimeUnixNano = timestampNanos - aggregationWidth.inWholeNanoseconds
+                timeUnixNano = timestampNanos
+                count = this@asOtlpExponentialHistogram.count()
+                sum = if(this@asOtlpExponentialHistogram.hasNegatives()) 0.0 else (this@asOtlpExponentialHistogram.sum())
+                min = this@asOtlpExponentialHistogram.min()
+                max = this@asOtlpExponentialHistogram.max()
+                scale = this@asOtlpExponentialHistogram.scale()
+                zeroCount = 0
+                positive = buckets {
+                   offset = this@asOtlpExponentialHistogram.bucketStartOffset()
+                   bucketCounts.addAll(
+                       this@asOtlpExponentialHistogram.takePositives()
+                   )
+                }
+                negative = buckets {
+                    offset = this@asOtlpExponentialHistogram.bucketStartOffset()
+                    bucketCounts.addAll(
+                        this@asOtlpExponentialHistogram.takeNegatives()
+                    )
+                }
             }
         )
     }
