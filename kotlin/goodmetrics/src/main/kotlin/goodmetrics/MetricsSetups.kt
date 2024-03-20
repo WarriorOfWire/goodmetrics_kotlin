@@ -96,6 +96,7 @@ class MetricsSetups private constructor() {
              * So I'll default the special lightstep configuration to use gzip compression. You can disable this if you want.
              */
             compressionMode: CompressionMode = CompressionMode.Gzip,
+            distributionMode: DistributionMode = DistributionMode.Histogram,
         ): ConfiguredMetrics {
             val client = opentelemetryClient(
                 lightstepAccessToken,
@@ -119,7 +120,8 @@ class MetricsSetups private constructor() {
                 preaggregatedBatchMaxMetricsCount,
                 preaggregatedBatchMaxAge,
                 onSendUnary,
-                onSendPreaggregated
+                onSendPreaggregated,
+                distributionMode,
             )
         }
 
@@ -196,6 +198,7 @@ class MetricsSetups private constructor() {
              */
             logRawPayload: (ResourceMetrics) -> Unit = {},
             compressionMode: CompressionMode = CompressionMode.Gzip,
+            distributionMode: DistributionMode = DistributionMode.Histogram,
         ): ConfiguredMetrics {
             val client = opentelemetryClient(
                 accessToken,
@@ -219,7 +222,8 @@ class MetricsSetups private constructor() {
                 preaggregatedBatchMaxMetricsCount,
                 preaggregatedBatchMaxAge,
                 onSendUnary,
-                onSendPreaggregated
+                onSendPreaggregated,
+                distributionMode,
             )
         }
 
@@ -276,10 +280,11 @@ class MetricsSetups private constructor() {
             preaggregatedBatchMaxMetricsCount: Int,
             preaggregatedBatchMaxAge: Duration,
             onSendUnary: (List<Metrics>) -> Unit,
-            onSendPreaggregated: (List<AggregatedBatch>) -> Unit
+            onSendPreaggregated: (List<AggregatedBatch>) -> Unit,
+            distributionMode: DistributionMode,
         ): ConfiguredMetrics {
             val unarySink = configureBatchedUnaryOtlpSink(unaryBatchSizeMaxMetricsCount, unaryBatchMaxAge, client, logError, onSendUnary)
-            val preaggregatedSink = configureBatchedPreaggregatedOtlpSink(aggregationWidth, preaggregatedBatchMaxMetricsCount, preaggregatedBatchMaxAge, client, logError, onSendPreaggregated)
+            val preaggregatedSink = configureBatchedPreaggregatedOtlpSink(aggregationWidth, preaggregatedBatchMaxMetricsCount, preaggregatedBatchMaxAge, client, logError, onSendPreaggregated, distributionMode)
 
             val unaryFactory = MetricsFactory(
                 sink = unarySink,
@@ -363,8 +368,7 @@ class MetricsSetups private constructor() {
             client: OpentelemetryClient,
             logError: (message: String, exception: Exception) -> Unit,
             onSendPreaggregated: (List<AggregatedBatch>) -> Unit,
-            // By default, use Histogram distribution mode since ExponentialHistograms are not frequently used
-            distributionMode: DistributionMode = DistributionMode.Histogram,
+            distributionMode: DistributionMode,
         ): Aggregator {
             val sink = Aggregator(aggregationWidth = aggregationWidth, distributionMode = distributionMode)
             val batcher = Batcher(
