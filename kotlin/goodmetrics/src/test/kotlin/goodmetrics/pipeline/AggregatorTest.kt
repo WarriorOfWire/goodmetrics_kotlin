@@ -327,7 +327,7 @@ internal class AggregatorTest {
         }
     }
 
-    // Verify multi threaded access is indeed safe
+    // Verify multithreaded access is indeed safe
     @Test
     fun testExponentialHistogramMultiThreadedAccess() {
         val e = Aggregation.ExponentialHistogram(0u)
@@ -343,9 +343,17 @@ internal class AggregatorTest {
         while (!executorService.isTerminated) {
             // wait
         }
+        assertEquals(1, e.positiveBuckets.size)
         // Should be 10_000 * 8
-        assertEquals(80000, e.count())
+        assertEquals(80_000, e.count())
         // Should be the result of 80_000 times `e.accumulate(1.0)` is called
-        assertEquals(9.671406556917032E28, e.sum())
+        assertEquals(80_000.0, e.sum())
+    }
+
+    @Test
+    fun testSaturatingSub() {
+        assertTrue(57u.saturatingSub(42u) > 0u)
+        assertEquals(0u, 57u.saturatingSub(160u))
+        assertEquals(4_294_967_294u, 4_294_967_295u.saturatingSub(1u))
     }
 }

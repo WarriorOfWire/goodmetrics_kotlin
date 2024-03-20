@@ -242,7 +242,7 @@ sealed interface Aggregation {
             // Initialize the histogram to center on the first data point. That should probabilistically
             // reduce the amount of shifting we do over time, for normal distributions.
             if (isEmpty()) {
-                bucketStartOffset = scaleIndex - maxBucketCount / 2u
+                bucketStartOffset = scaleIndex.saturatingSub(maxBucketCount / 2u)
             }
 
             var localIndex = scaleIndex.toInt() - bucketStartOffset.toInt()
@@ -264,9 +264,9 @@ sealed interface Aggregation {
                 localIndex = maxBucketCount.toInt() - 1
             }
 
-            val index = min(maxBucketCount - 1u, localIndex.toUInt())
+            val index = min(max(0u, maxBucketCount - 1u), localIndex.toUInt())
             val buckets = getMutableBucketsForValue(value)
-            val size = max(0, (index.toInt() - buckets.size)+ 1)
+            val size = max(0, (index.toInt() - buckets.size) + 1)
             buckets.addAll(List(size) { 0 })
             buckets[index.toInt()] += count
         }
@@ -429,4 +429,8 @@ fun mapValueToScaleIndex(scale: Int, rawValue: Number): UInt {
 fun lowerBoundary(scale: Number, index: UInt): Double {
     val inverseScaleFactor = LN_2 * 2.0.pow(-scale.toInt())
     return exp(index.toDouble() * inverseScaleFactor)
+}
+
+fun UInt.saturatingSub(other: UInt): UInt {
+    return (this - other)*( if (this >= other) 1u else 0u)
 }
