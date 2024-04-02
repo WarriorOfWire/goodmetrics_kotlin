@@ -286,13 +286,13 @@ sealed interface Aggregation {
             // now just re-ingest
             for ((oldIndex, count) in oldPositives.withIndex()) {
                 if (0 < count) {
-                    val value = lowerBoundary(oldScale, (oldBucketStartOffset + oldIndex.toUInt()))
+                    val value = lowerBoundary(oldScale, oldBucketStartOffset, oldIndex.toUInt())
                     accumulateCount(value, count)
                 }
             }
             for ((oldIndex, count) in oldNegatives.withIndex()) {
                 if (0 < count) {
-                    val value = -lowerBoundary(oldScale, (oldBucketStartOffset + oldIndex.toUInt()))
+                    val value = -lowerBoundary(oldScale, oldBucketStartOffset, oldIndex.toUInt())
                     accumulateCount(value, count)
                 }
             }
@@ -340,18 +340,18 @@ sealed interface Aggregation {
          * This is an approximation, just using the positive buckets for the sum.
          */
         fun sum(): Double = synchronized(lock) {
-            positiveBuckets.mapIndexed { index, count -> lowerBoundary(actualScale.toInt(), index.toUInt()) * count }.sum()
+            positiveBuckets.mapIndexed { index, count -> lowerBoundary(actualScale.toInt(), bucketStartOffset, index.toUInt()) * count }.sum()
         }
 
         /**
          * This is an approximation, just using the positive buckets for the min.
          */
         fun min(): Double = synchronized(lock) {
-            return positiveBuckets.withIndex().firstOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
+            return positiveBuckets.withIndex().firstOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), bucketStartOffset, it.index.toUInt()) } ?: 0.0
         }
 
         fun max(): Double  = synchronized(lock) {
-            return positiveBuckets.withIndex().lastOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), it.index.toUInt()) } ?: 0.0
+            return positiveBuckets.withIndex().lastOrNull { 0 < it.value }?.let { lowerBoundary(actualScale.toInt(), bucketStartOffset, it.index.toUInt()) } ?: 0.0
         }
 
         fun scale(): Int = synchronized(lock) { actualScale.toInt() }
@@ -375,12 +375,12 @@ sealed interface Aggregation {
         fun valueCounts(): Sequence<Pair<Double, Long>> = synchronized(lock) {
             return this.negativeBuckets.mapIndexed { index, count ->
                 Pair(
-                    lowerBoundary(actualScale.toInt(), bucketStartOffset + index.toUInt()),
+                    lowerBoundary(actualScale.toInt(), bucketStartOffset, index.toUInt()),
                     count
                 )
             }.asSequence() + this.positiveBuckets.mapIndexed { index, count ->
                 Pair(
-                    lowerBoundary(actualScale.toInt(), bucketStartOffset + index.toUInt()),
+                    lowerBoundary(actualScale.toInt(), bucketStartOffset, index.toUInt()),
                     count
                 )
             }.asSequence()
@@ -426,9 +426,9 @@ fun mapValueToScaleIndex(scale: Int, rawValue: Number): UInt {
  *   > their absolute value into the negative range using the same scale as the positive range. Note that in the
  *   > negative range, therefore, histogram buckets use lower-inclusive boundaries.
  */
-fun lowerBoundary(scale: Number, index: UInt): Double {
+fun lowerBoundary(scale: Number, offset: UInt, index: UInt): Double {
     val inverseScaleFactor = LN_2 * 2.0.pow(-scale.toInt())
-    return exp(index.toDouble() * inverseScaleFactor)
+    return exp((offset + index).toDouble() * inverseScaleFactor)
 }
 
 fun UInt.saturatingSub(other: UInt): UInt {

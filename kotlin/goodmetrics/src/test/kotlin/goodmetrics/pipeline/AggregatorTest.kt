@@ -40,8 +40,16 @@ internal class AggregatorTest {
 
     private fun assertValueLowerBoundary(exponentialHistogram: Aggregation.ExponentialHistogram, value: Number, expectedLowerBoundary: Number) {
         val observedIndex = mapValueToScaleIndex(exponentialHistogram.scale(), value.toDouble())
-        val observedBoundary = lowerBoundary(exponentialHistogram.scale(), observedIndex)
+        val observedBoundary = lowerBoundary(exponentialHistogram.scale(), 0u, observedIndex)
         assertEqualsEpsilon(expectedLowerBoundary.toDouble(), observedBoundary, "boundary matches")
+        if (0 < observedIndex.toInt()) {
+            val observedOffsetBoundary = lowerBoundary(exponentialHistogram.scale(), 1u, observedIndex - 1u)
+            assertEqualsEpsilon(
+                observedBoundary,
+                observedOffsetBoundary,
+                "offset must result in the same boundary"
+            )
+        }
     }
 
     @BeforeTest
@@ -242,8 +250,8 @@ internal class AggregatorTest {
         assertValueLowerBoundary(e, 24_040_000, 23984931.775)
         assertValueLowerBoundary(e, 24_050_000, 24049961.522)
 
-        assertEqualsEpsilon(19313750.368, lowerBoundary(8, 6196u), "lower boundary of histogram")
-        assertEqualsEpsilon(29785874.896, lowerBoundary(8, 6196u + 160u), "upper boundary of histogram")
+        assertEqualsEpsilon(19313750.368, lowerBoundary(8, 0u, 6196u), "lower boundary of histogram")
+        assertEqualsEpsilon(29785874.896, lowerBoundary(8, 0u, 6196u + 160u), "upper boundary of histogram")
 
         // Accumulate some data in a bucket's range
         for (i in 0 until 40_000) {
@@ -270,7 +278,7 @@ internal class AggregatorTest {
         assertEquals(83, e.positiveBuckets.size, "bucket count should not increase when a new bucket value is observed within the covered range")
         assertEquals(1, e.positiveBuckets[0], "index 0 has a new count")
         assertEquals(6195, e.bucketStartOffset(), "bucket start offset changes because we rotated down 1 position")
-        assertEqualsEpsilon(29705335.561, lowerBoundary(8, 6195u + 160u), "new upper boundary of histogram")
+        assertEqualsEpsilon(29705335.561, lowerBoundary(8, 0u, 6195u + 160u), "new upper boundary of histogram")
 
         //
         // -------- Expand histogram range with a big number --------
@@ -287,9 +295,9 @@ internal class AggregatorTest {
         //
 
         val recursiveScaleStartCount = e.count()
-        assertEquals(2199023255551.996, lowerBoundary(2, 164u), "this value gets us down into scale 2")
-        assertEqualsEpsilon(4.0, lowerBoundary(2, 8u), "this value gets us down into scale 2")
-        assertEqualsEpsilon(4.757, lowerBoundary(2, 9u), "this value gets us down into scale 2")
+        assertEquals(2199023255551.996, lowerBoundary(2, 0u, 164u), "this value gets us down into scale 2")
+        assertEqualsEpsilon(4.0, lowerBoundary(2, 0u, 8u), "this value gets us down into scale 2")
+        assertEqualsEpsilon(4.757, lowerBoundary(2, 0u, 9u), "this value gets us down into scale 2")
         // pin the bucket's low value, at scale 2's index 8. It's not in scale 2 yet though!
         e.accumulate(4.25)
         // now blow the range wide, way past scale 7, resulting in a recursive scale down from 7 to precision 2.
